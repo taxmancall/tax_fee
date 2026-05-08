@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>원제우세무사사무소 | 재산분야 수수료 계산기</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #0d1f3c;
+    --navy-mid: #1a3160;
+    --gold: #c8972a;
+    --gold-light: #e8b84b;
+    --gold-pale: #fdf6e3;
+    --white: #ffffff;
+    --gray-100: #f7f8fa;
+    --gray-200: #eaecf0;
+    --gray-400: #9aa0aa;
+    --gray-700: #3a3f4a;
+    --red: #c0392b;
+    --green: #1a6e4a;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(13,31,60,0.10);
+    --shadow-lg: 0 8px 40px rgba(13,31,60,0.16);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-700);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--navy);
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      -55deg,
+      transparent,
+      transparent 60px,
+      rgba(200,151,42,0.04) 60px,
+      rgba(200,151,42,0.04) 61px
+    );
+  }
+  .header-inner {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 32px 24px 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+  }
+  .logo-badge {
+    width: 56px;
+    height: 56px;
+    background: var(--gold);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 16px rgba(200,151,42,0.35);
+  }
+  .logo-badge svg { width: 32px; height: 32px; }
+  .header-text { flex: 1; }
+  .office-name {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -0.3px;
+    line-height: 1.3;
+  }
+  .office-sub {
+    font-size: 12px;
+    color: var(--gold-light);
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+  }
+  .year-badge {
+    background: rgba(200,151,42,0.18);
+    border: 1px solid rgba(200,151,42,0.35);
+    color: var(--gold-light);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  /* MAIN */
+  main {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::before {
+    content: '';
+    width: 3px;
+    height: 16px;
+    background: var(--gold);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* TYPE SELECT */
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .type-btn {
+    border: 2px solid var(--gray-200);
+    background: var(--white);
+    border-radius: 10px;
+    padding: 18px 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.18s;
+    font-family: 'Noto Serif KR', serif;
+  }
+  .type-btn .type-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+  .type-btn .type-label {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    display: block;
+  }
+  .type-btn .type-desc {
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 4px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 300;
+  }
+  .type-btn:hover { border-color: var(--gold); background: var(--gold-pale); }
+  .type-btn.active {
+    border-color: var(--gold);
+    background: var(--gold-pale);
+    box-shadow: 0 0 0 3px rgba(200,151,42,0.15);
+  }
+  .type-btn.active .type-label { color: var(--gold); }
+
+  /* INPUTS */
+  .input-group { margin-bottom: 18px; }
+  .input-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .input-label span {
+    font-size: 11px;
+    color: var(--gray-400);
+    font-weight: 400;
+    margin-left: 6px;
+  }
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+    background: var(--white);
+  }
+  .input-row:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200,151,42,0.12); }
+  .input-row input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 13px 16px;
+    font-size: 16px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 500;
+    color: var(--navy);
+    background: transparent;
+    text-align: right;
+  }
+  .input-unit {
+    padding: 0 16px 0 0;
+    font-size: 13px;
+    color: var(--gray-400);
+    white-space: nowrap;
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* ADJUST ROW */
+  .adj-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .adj-row select {
+    border: 1.5px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    color: var(--navy);
+    background: var(--white);
+    outline: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.15s;
+  }
+  .adj-row select:focus { border-color: var(--gold); }
+  .adj-row .input-row { flex: 1; }
+
+  /* NOTE */
+  .note-area textarea {
+    width: 100%;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    color: var(--gray-700);
+    resize: vertical;
+    min-height: 70px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .note-area textarea:focus { border-color: var(--gold); }
+  .note-area textarea::placeholder { color: var(--gray-400); }
+
+  /* CALC BTN */
+  .calc-btn {
+    width: 100%;
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    padding: 17px;
+    font-family: 'Noto Serif KR', serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+  .calc-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--gold);
+  }
+  .calc-btn:hover { background: var(--navy-mid); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+  .calc-btn:active { transform: translateY(0); }
+
+  /* RESULT */
+  #result-card { display: none; }
+  #result-card.show { display: block; animation: fadeUp 0.3s ease; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-header {
+    background: var(--navy);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .result-header::after {
+    content: '';
+    position: absolute;
+    right: -20px; top: -20px;
+    width: 120px; height: 120px;
+    background: rgba(200,151,42,0.08);
+    border-radius: 50%;
+  }
+  .result-label {
+    font-size: 12px;
+    color: var(--gold-light);
+    letter-spacing: 1px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .result-amount {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -1px;
+  }
+  .result-amount span { font-size: 18px; font-weight: 400; margin-left: 4px; }
+
+  .breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .breakdown-table tr { border-bottom: 1px solid var(--gray-200); }
+  .breakdown-table tr:last-child { border-bottom: none; }
+  .breakdown-table td {
+    padding: 11px 4px;
+    color: var(--gray-700);
+  }
+  .breakdown-table td:last-child {
+    text-align: right;
+    font-weight: 600;
+    color: var(--navy);
+    font-variant-numeric: tabular-nums;
+  }
+  .breakdown-table tr.total td {
+    padding-top: 16px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    border-top: 2px solid var(--navy);
+  }
+  .breakdown-table tr.discount td { color: var(--red); }
+  .breakdown-table tr.discount td:last-child { color: var(--red); }
+
+  /* BANK BOX */
+  .bank-box {
+    background: linear-gradient(135deg, var(--gold-pale), #fffbf0);
+    border: 1.5px solid rgba(200,151,42,0.3);
+    border-radius: 10px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .bank-icon {
+    width: 44px;
+    height: 44px;
+    background: var(--gold);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+  .bank-info { flex: 1; }
+  .bank-label { font-size: 11px; color: var(--gray-400); font-weight: 400; margin-bottom: 4px; }
+  .bank-account {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: 0.5px;
+  }
+  .bank-account span { color: var(--gold); }
+  .bank-note { font-size: 11px; color: var(--gray-400); margin-top: 3px; }
+
+  /* PDF BTN */
+  .pdf-btn {
+    width: 100%;
+    background: var(--gold);
+    color: var(--navy);
+    border: none;
+    border-radius: 10px;
+    padding: 16px;
+    font-family: 'Noto Serif KR', serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    margin-top: 16px;
+    transition: all 0.18s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .pdf-btn:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(200,151,42,0.3); }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+    color: var(--gray-400);
+  }
+
+  /* AMOUNT PREVIEW */
+  .amount-preview {
+    font-size: 12px;
+    color: var(--gold);
+    text-align: right;
+    margin-top: 5px;
+    font-weight: 500;
+    min-height: 18px;
+  }
+
+  @media (max-width: 480px) {
+    .two-col { grid-template-columns: 1fr; }
+    .type-grid { grid-template-columns: 1fr; gap: 8px; }
+    .type-btn { padding: 14px; display: flex; align-items: center; gap: 12px; text-align: left; }
+    .type-btn .type-icon { font-size: 22px; margin-bottom: 0; }
+    .result-amount { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo-badge">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 8h24M4 16h16M4 24h20" stroke="#0d1f3c" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="26" cy="22" r="5" fill="#0d1f3c" opacity="0.85"/>
+        <path d="M24 22l1.5 1.5L28 20" stroke="#c8972a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <div class="office-name">원제우세무사사무소</div>
+      <div class="office-sub">재산분야 수수료 계산기 · 상속 · 증여 · 양도</div>
+    </div>
+    <div class="year-badge">2024년 기준</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 세금 유형 -->
+  <div class="card">
+    <div class="card-title">세금 유형 선택</div>
+    <div class="type-grid">
+      <button class="type-btn active" data-type="상속" onclick="selectType(this)">
+        <span class="type-icon">🏛</span>
+        <span class="type-label">상속세</span>
+        <span class="type-desc">상속재산 신고대리</span>
+      </button>
+      <button class="type-btn" data-type="증여" onclick="selectType(this)">
+        <span class="type-icon">🎁</span>
+        <span class="type-label">증여세</span>
+        <span class="type-desc">증여재산 신고대리</span>
+      </button>
+      <button class="type-btn" data-type="양도" onclick="selectType(this)">
+        <span class="type-icon">🏠</span>
+        <span class="type-label">양도소득세</span>
+        <span class="type-desc">부동산 양도 신고대리</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 금액 입력 -->
+  <div class="card">
+    <div class="card-title">거래금액 입력</div>
+    <div class="input-group">
+      <label class="input-label" id="amount-label">수입(자산)금액 <span>원 단위 입력</span></label>
+      <div class="input-row">
+        <input type="text" id="amount" placeholder="0" oninput="formatAmount(this)" onkeyup="updatePreview()">
+        <span class="input-unit">원</span>
+      </div>
+      <div class="amount-preview" id="amount-preview"></div>
+    </div>
+
+    <!-- 할인 / 가산 -->
+    <div class="two-col">
+      <div class="input-group">
+        <label class="input-label">할인 <span>기준 수수료 대비</span></label>
+        <div class="adj-row">
+          <div class="input-row">
+            <input type="number" id="discount" placeholder="0" min="0" max="100" step="1" oninput="clampAdj(this)">
+            <span class="input-unit">%</span>
+          </div>
+        </div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">가산 <span>기준 수수료 대비</span></label>
+        <div class="adj-row">
+          <div class="input-row">
+            <input type="number" id="surcharge" placeholder="0" min="0" max="200" step="1" oninput="clampAdj(this)">
+            <span class="input-unit">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 비고 -->
+    <div class="input-group note-area">
+      <label class="input-label">비고 <span>메모 (PDF에 포함됩니다)</span></label>
+      <textarea id="note" placeholder="예) 공동상속인 3명, 부동산 2건 포함 등"></textarea>
+    </div>
+
+    <button class="calc-btn" onclick="calculate()">수수료 계산하기</button>
+  </div>
+
+  <!-- 결과 -->
+  <div class="card" id="result-card">
+    <div class="card-title">수수료 산출 결과</div>
+
+    <div class="result-header">
+      <div class="result-label" id="res-type-label">상속세 신고대리 수수료</div>
+      <div class="result-amount" id="res-final-amount">0<span>원</span></div>
+    </div>
+
+    <table class="breakdown-table" id="breakdown-table">
+    </table>
+
+    <div style="height:20px"></div>
+
+    <!-- 입금 계좌 -->
+    <div class="bank-box">
+      <div class="bank-icon">🏦</div>
+      <div class="bank-info">
+        <div class="bank-label">수수료 입금계좌</div>
+        <div class="bank-account"><span>하나은행</span> &nbsp;010-3489-4567 (평생계좌)</div>
+        <div class="bank-note">예금주: 원제우 · 부가가치세 포함 금액입니다</div>
+      </div>
+    </div>
+
+    <button class="pdf-btn" onclick="downloadPDF()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d1f3c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <polyline points="9 15 12 18 15 15"/>
+      </svg>
+      PDF로 저장 · 고객 전달용
+    </button>
+  </div>
+
+</main>
+
+<footer>
+  원제우세무사사무소 · 부천시 소향로 135 3층 · Tel 032-321-4521 · taxmancall@gmail.com<br>
+  ※ 위 수수료는 부가가치세 포함 금액이며 세무조사 수수료는 별도입니다. 수수료는 매년 변동됩니다.
+</footer>
+
+<script>
+  let selectedType = '상속';
+  let lastResult = null;
+
+  function selectType(btn) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedType = btn.dataset.type;
+    updateAmountLabel();
+    updatePreview();
+  }
+
+  function updateAmountLabel() {
+    const labels = { '상속': '상속재산 가액', '증여': '증여재산 가액', '양도': '양도 거래금액' };
+    document.getElementById('amount-label').innerHTML = `${labels[selectedType]} <span>원 단위 입력</span>`;
+  }
+
+  function formatAmount(el) {
+    let raw = el.value.replace(/[^0-9]/g, '');
+    if (raw === '') { el.value = ''; return; }
+    el.value = Number(raw).toLocaleString('ko-KR');
+  }
+
+  function getRawAmount() {
+    return parseInt(document.getElementById('amount').value.replace(/,/g, '') || '0');
+  }
+
+  function updatePreview() {
+    const amt = getRawAmount();
+    const el = document.getElementById('amount-preview');
+    if (!amt) { el.textContent = ''; return; }
+    el.textContent = formatKorean(amt);
+  }
+
+  function formatKorean(n) {
+    const units = ['', '만', '억', '조'];
+    const parts = [];
+    let tmp = n;
+    const div = [1, 10000, 100000000, 1000000000000];
+    for (let i = div.length - 1; i >= 0; i--) {
+      const val = Math.floor(tmp / div[i]);
+      if (val > 0) { parts.push(val.toLocaleString('ko-KR') + units[i]); }
+      tmp = tmp % div[i];
+    }
+    return parts.join(' ') + '원';
+  }
+
+  function clampAdj(el) {
+    if (el.value < 0) el.value = 0;
+  }
+
+  // ── 수수료 테이블 ──
+  function calcBase(type, amount) {
+    if (type === '상속') {
+      if (amount < 200000000) return 550000;
+      if (amount < 500000000) return 550000 + (amount - 200000000) * 3.3 / 1000;
+      if (amount < 1000000000) return 1650000 + (amount - 500000000) * 2.75 / 1000;
+      if (amount < 3000000000) return 3300000 + (amount - 1000000000) * 2.2 / 1000;
+      if (amount < 5000000000) return 9020000 + (amount - 3000000000) * 1.65 / 1000;
+      if (amount < 10000000000) return 12760000 + (amount - 5000000000) * 0.55 / 1000;
+      return 19360000 + (amount - 10000000000) * 0.275 / 1000;
+    }
+    if (type === '증여') {
+      if (amount < 200000000) return 550000;
+      if (amount < 500000000) return 550000 + (amount - 200000000) * 3.3 / 1000;
+      if (amount < 1000000000) return 1320000 + (amount - 500000000) * 2.75 / 1000;
+      if (amount < 3000000000) return 2695000 + (amount - 1000000000) * 2.2 / 1000;
+      if (amount < 5000000000) return 7095000 + (amount - 3000000000) * 1.65 / 1000;
+      if (amount < 10000000000) return 10395000 + (amount - 5000000000) * 0.55 / 1000;
+      return 13145000 + (amount - 10000000000) * 0.275 / 1000;
+    }
+    if (type === '양도') {
+      if (amount < 200000000) return 330000;
+      if (amount < 1000000000) return 330000 + (amount - 200000000) * 0.0011;
+      return 1320000 + (amount - 1000000000) * 0.00055;
+    }
+    return 0;
+  }
+
+  function calculate() {
+    const amount = getRawAmount();
+    if (!amount || amount <= 0) {
+      alert('금액을 입력해 주세요.');
+      return;
+    }
+    const discount = parseFloat(document.getElementById('discount').value || 0);
+    const surcharge = parseFloat(document.getElementById('surcharge').value || 0);
+    const note = document.getElementById('note').value.trim();
+
+    const base = Math.round(calcBase(selectedType, amount));
+    const surchargeAmt = Math.round(base * surcharge / 100);
+    const afterSurcharge = base + surchargeAmt;
+    const discountAmt = Math.round(afterSurcharge * discount / 100);
+    const final = afterSurcharge - discountAmt;
+
+    lastResult = { type: selectedType, amount, base, surcharge, surchargeAmt, discount, discountAmt, final, note };
+
+    // 화면 출력
+    document.getElementById('res-type-label').textContent = `${selectedType}세 신고대리 수수료 (VAT 포함)`;
+    document.getElementById('res-final-amount').innerHTML = `${final.toLocaleString('ko-KR')}<span>원</span>`;
+
+    const rows = [];
+    rows.push(['거래금액', formatKorean(amount)]);
+    rows.push(['기준 수수료', base.toLocaleString('ko-KR') + ' 원']);
+    if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
+    if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
+    rows.push(['최종 수수료 (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
+    if (note) rows.push(['비고', note]);
+
+    const table = document.getElementById('breakdown-table');
+    table.innerHTML = rows.map(r => {
+      const cls = r[2] ? ` class="${r[2]}"` : '';
+      return `<tr${cls}><td>${r[0]}</td><td>${r[1]}</td></tr>`;
+    }).join('');
+
+    const rc = document.getElementById('result-card');
+    rc.classList.add('show');
+    rc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── PDF 생성 ──
+  async function downloadPDF() {
+    if (!lastResult) { alert('먼저 수수료를 계산해 주세요.'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+    const W = 210, H = 297;
+    const navy = [13, 31, 60];
+    const gold = [200, 151, 42];
+    const white = [255, 255, 255];
+    const gray = [100, 110, 130];
+    const lightGray = [240, 242, 245];
+
+    // --- 헤더 배경 ---
+    doc.setFillColor(...navy);
+    doc.rect(0, 0, W, 50, 'F');
+
+    // 골드 액센트 라인
+    doc.setFillColor(...gold);
+    doc.rect(0, 47, W, 3, 'F');
+
+    // 사무소명
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...white);
+    doc.text('WON JE WOO TAX ACCOUNTING OFFICE', 20, 18);
+
+    doc.setFontSize(20);
+    doc.setTextColor(...gold);
+    doc.text('WONSEMU', 20, 30);
+
+    doc.setFontSize(10);
+    doc.setTextColor(200, 200, 200);
+    doc.text('2024 ESTATE TAX FEE STATEMENT', 20, 38);
+
+    // 날짜
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+    doc.setFontSize(9);
+    doc.setTextColor(180, 180, 180);
+    doc.text(dateStr, W - 20, 22, { align: 'right' });
+    doc.text('RECEIPT DATE', W - 20, 28, { align: 'right' });
+
+    // --- 본문 시작 ---
+    let y = 62;
+
+    // 제목 블록
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(20, y, W - 40, 22, 3, 3, 'F');
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...navy);
+    doc.text(`${lastResult.type}  TAX SERVICE FEE STATEMENT`, W/2, y + 9, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...gray);
+    doc.text('(VAT INCLUDED)', W/2, y + 16, { align: 'center' });
+
+    y += 32;
+
+    // 거래금액 정보
+    doc.setFillColor(...navy);
+    doc.roundedRect(20, y, W - 40, 28, 3, 3, 'F');
+    doc.setFontSize(9);
+    doc.setTextColor(...gold);
+    doc.text('TRANSACTION AMOUNT', 30, y + 9);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...white);
+    doc.text(lastResult.amount.toLocaleString('ko-KR') + ' KRW', 30, y + 22);
+
+    y += 40;
+
+    // 수수료 내역 테이블
+    const tableHeader = ['항목', '금액'];
+    const tableData = [
+      ['기준 수수료', lastResult.base.toLocaleString('ko-KR') + ' 원'],
+    ];
+    if (lastResult.surcharge > 0) tableData.push([`가산 (${lastResult.surcharge}%)`, '+' + lastResult.surchargeAmt.toLocaleString('ko-KR') + ' 원']);
+    if (lastResult.discount > 0) tableData.push([`할인 (${lastResult.discount}%)`, '-' + lastResult.discountAmt.toLocaleString('ko-KR') + ' 원']);
+
+    // 테이블 헤더
+    doc.setFillColor(...navy);
+    doc.rect(20, y, W - 40, 10, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...white);
+    doc.text('항  목', 30, y + 7);
+    doc.text('금  액', W - 30, y + 7, { align: 'right' });
+    y += 10;
+
+    tableData.forEach((row, i) => {
+      doc.setFillColor(i % 2 === 0 ? 250 : 245, i % 2 === 0 ? 252 : 247, i % 2 === 0 ? 255 : 252);
+      doc.rect(20, y, W - 40, 10, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...gray);
+      doc.text(row[0], 30, y + 7);
+      const isDiscount = row[0].includes('할인');
+      doc.setTextColor(isDiscount ? 180 : 50, isDiscount ? 50 : 80, isDiscount ? 50 : 130);
+      doc.text(row[1], W - 30, y + 7, { align: 'right' });
+      y += 10;
+    });
+
+    // 합계
+    doc.setFillColor(...gold);
+    doc.rect(20, y, W - 40, 14, 'F');
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...navy);
+    doc.text('최 종 수 수 료  (VAT 포함)', 30, y + 10);
+    doc.text(lastResult.final.toLocaleString('ko-KR') + ' 원', W - 30, y + 10, { align: 'right' });
+    y += 24;
+
+    // 비고
+    if (lastResult.note) {
+      doc.setFillColor(255, 251, 235);
+      doc.roundedRect(20, y, W - 40, 16, 3, 3, 'F');
+      doc.setDrawColor(...gold);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(20, y, W - 40, 16, 3, 3, 'S');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...gold);
+      doc.text('비고', 28, y + 7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...gray);
+      doc.text(lastResult.note, 46, y + 7);
+      y += 26;
+    }
+
+    // 입금 계좌
+    y += 4;
+    doc.setFillColor(248, 252, 255);
+    doc.roundedRect(20, y, W - 40, 30, 3, 3, 'F');
+    doc.setDrawColor(200, 215, 235);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(20, y, W - 40, 30, 3, 3, 'S');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...navy);
+    doc.text('수수료 입금 계좌 안내', 30, y + 10);
+
+    doc.setFontSize(12);
+    doc.setTextColor(...gold);
+    doc.text('HANAbank  010-3489-4567', 30, y + 21);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...gray);
+    doc.text('(평생계좌)  예금주: 원제우', 30, y + 28);
+
+    y += 42;
+
+    // 유의사항
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(20, y, W - 40, 26, 3, 3, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...navy);
+    doc.text('유의사항', 28, y + 8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...gray);
+    doc.text('· 위 수수료는 부가가치세(VAT) 포함 금액입니다.', 28, y + 15);
+    doc.text('· 세무조사 수수료는 별도로 산정됩니다. 수수료는 매년 변동될 수 있습니다.', 28, y + 21);
+
+    // 푸터
+    doc.setFillColor(...navy);
+    doc.rect(0, H - 24, W, 24, 'F');
+    doc.setFillColor(...gold);
+    doc.rect(0, H - 24, W, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(180, 180, 180);
+    doc.text('원제우세무사사무소 · 부천시 소향로 135 3층 · Tel 032-321-4521 · taxmancall@gmail.com', W/2, H - 12, { align: 'center' });
+    doc.setTextColor(...gold);
+    doc.text('WON TAX', W/2, H - 6, { align: 'center' });
+
+    const typeMap = { '상속': 'inheritance', '증여': 'gift', '양도': 'transfer' };
+    doc.save(`원세무사_${typeMap[lastResult.type]}_fee_${dateStr}.pdf`);
+  }
+
+  // 초기화
+  updateAmountLabel();
+</script>
+</body>
+</html>
