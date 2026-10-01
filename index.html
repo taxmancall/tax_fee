@@ -6,6 +6,7 @@
 <title>원제우세무사사무소 | 재산분야 수수료 계산기</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root {
     --navy: #0d1f3c;
@@ -823,7 +824,7 @@
 
     // 화면 출력
     const feeWord = consult ? '상담료' : '수수료';
-    document.getElementById('res-type-label').textContent = `${selectedType}세 ${consult ? '상담료' : '신고대리 수수료'} (VAT 포함)`;
+    document.getElementById('res-type-label').textContent = `${selectedType}세 ${consult ? '상담료' : '신고대리 수수료'} (부가세 포함)`;
     document.getElementById('res-final-amount').innerHTML = `${final.toLocaleString('ko-KR')}<span>원</span>`;
 
     const rows = [];
@@ -834,15 +835,18 @@
     if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (book) rows.push([bookLabel, '-' + bookAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
     if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
-    rows.push(['최종 ' + feeWord + ' (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
+    rows.push(['최종 ' + feeWord + ' (부가세 포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
     if (consult) rows.push(['신고 위임 시', '상담료 전액을 신고 수수료에서 차감']);
     if (!consult && selectedType === '상속' && amount >= 10000000000) rows.push(['100억원 초과분', '별도 협의 (위 금액은 기준선)']);
     if (note) rows.push(['비고', note]);
 
+    lastResult.rows = rows;
+    lastResult.feeWord = feeWord;
+
     const table = document.getElementById('breakdown-table');
     table.innerHTML = rows.map(r => {
       const cls = r[2] ? ` class="${r[2]}"` : '';
-      return `<tr${cls}><td>${r[0]}</td><td>${r[1]}</td></tr>`;
+      return `<tr${cls}><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`;
     }).join('');
 
     const rc = document.getElementById('result-card');
@@ -851,189 +855,86 @@
   }
 
   // ── PDF 생성 ──
+  // 한글이 깨지지 않도록 안내서를 화면용 글꼴로 그린 뒤 이미지로 PDF에 넣는다.
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
   async function downloadPDF() {
     if (!lastResult) { alert('먼저 수수료를 계산해 주세요.'); return; }
+    if (!window.jspdf || !window.html2canvas) { alert('PDF 도구를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 새로고침해 주세요.'); return; }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-
-    const W = 210, H = 297;
-    const navy = [13, 31, 60];
-    const gold = [200, 151, 42];
-    const white = [255, 255, 255];
-    const gray = [100, 110, 130];
-    const lightGray = [240, 242, 245];
-
-    // --- 헤더 배경 ---
-    doc.setFillColor(...navy);
-    doc.rect(0, 0, W, 50, 'F');
-
-    // 골드 액센트 라인
-    doc.setFillColor(...gold);
-    doc.rect(0, 47, W, 3, 'F');
-
-    // 사무소명
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...white);
-    doc.text('WON JE WOO TAX ACCOUNTING OFFICE', 20, 18);
-
-    doc.setFontSize(20);
-    doc.setTextColor(...gold);
-    doc.text('WONSEMU', 20, 30);
-
-    doc.setFontSize(10);
-    doc.setTextColor(200, 200, 200);
-    doc.text('2026 ESTATE TAX FEE STATEMENT', 20, 38);
-
-    // 날짜
+    const r = lastResult;
     const today = new Date();
     const dateStr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
-    doc.setFontSize(9);
-    doc.setTextColor(180, 180, 180);
-    doc.text(dateStr, W - 20, 22, { align: 'right' });
-    doc.text('RECEIPT DATE', W - 20, 28, { align: 'right' });
+    const taxName = { '상속': '상속세', '증여': '증여세', '양도': '양도소득세' }[r.type];
+    const title = `${taxName} ${r.consult ? '상담료' : '신고대리 수수료'} 안내서`;
+    const amountLabel = r.consult ? '상담 시간' : { '상속': '상속재산 가액', '증여': '증여재산 가액', '양도': '양도 거래금액' }[r.type];
+    const amountText = r.consult ? r.timeLabel : r.amount.toLocaleString('ko-KR') + '원';
+    const amountSub = r.consult ? '' : formatKorean(r.amount);
 
-    // --- 본문 시작 ---
-    let y = 62;
+    // 첫 행(거래금액/상담 시간)과 비고는 별도 영역에 표시
+    const body = r.rows.slice(1).filter(x => x[0] !== '비고' && x[2] !== 'total');
+    const total = r.rows.find(x => x[2] === 'total');
+    const bodyHtml = body.map((x, i) => {
+      const color = x[2] === 'discount' ? '#c0392b' : '#0d1f3c';
+      return `<tr style="background:${i % 2 ? '#f5f7fc' : '#fafcff'}"><td style="padding:11px 20px;color:#3a3f4a">${esc(x[0])}</td><td style="padding:11px 20px;text-align:right;font-weight:600;color:${color}">${esc(x[1])}</td></tr>`;
+    }).join('');
 
-    // 제목 블록
-    doc.setFillColor(...lightGray);
-    doc.roundedRect(20, y, W - 40, 22, 3, 3, 'F');
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...navy);
-    doc.text(`${lastResult.type}  TAX ${lastResult.consult ? 'CONSULTATION' : 'SERVICE'} FEE STATEMENT`, W/2, y + 9, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...gray);
-    doc.text('(VAT INCLUDED)', W/2, y + 16, { align: 'center' });
+    const sheet = document.createElement('div');
+    sheet.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;height:1123px;background:#fff;font-family:'Noto Sans KR',sans-serif;color:#3a3f4a;display:flex;flex-direction:column;";
+    sheet.innerHTML = `
+      <div style="background:#0d1f3c;padding:34px 48px 28px;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:8px solid #c8972a">
+        <div>
+          <div style="font-family:'Noto Serif KR',serif;font-size:26px;font-weight:700;color:#fff">원제우세무사사무소</div>
+          <div style="font-size:13px;color:#e8b84b;margin-top:6px">재산분야 수수료 안내 · 2026년 기준</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:#c8ccd4">발행일<br><span style="font-size:15px;color:#fff;font-weight:500">${dateStr}</span></div>
+      </div>
+      <div style="padding:34px 48px 0;flex:1">
+        <div style="background:#f0f2f5;border-radius:8px;padding:16px;text-align:center">
+          <div style="font-family:'Noto Serif KR',serif;font-size:19px;font-weight:700;color:#0d1f3c">${title}</div>
+          <div style="font-size:12px;color:#646e82;margin-top:4px">부가가치세 포함</div>
+        </div>
+        <div style="background:#0d1f3c;border-radius:8px;padding:18px 24px;margin-top:20px">
+          <div style="font-size:12px;color:#e8b84b">${amountLabel}</div>
+          <div style="font-size:24px;font-weight:600;color:#fff;margin-top:4px">${amountText}${amountSub ? `<span style="font-size:13px;font-weight:400;color:#c8ccd4;margin-left:10px">${amountSub}</span>` : ''}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-top:24px;font-size:14px">
+          <tr style="background:#0d1f3c;color:#fff"><th style="padding:10px 20px;text-align:left;font-weight:600">항목</th><th style="padding:10px 20px;text-align:right;font-weight:600">금액</th></tr>
+          ${bodyHtml}
+          <tr style="background:#c8972a;color:#0d1f3c;font-weight:700;font-size:16px"><td style="padding:14px 20px">${esc(total[0])}</td><td style="padding:14px 20px;text-align:right">${esc(total[1])}</td></tr>
+        </table>
+        ${r.note ? `<div style="margin-top:20px;border:1px solid #c8972a;background:#fffbeb;border-radius:8px;padding:14px 20px;font-size:13px;line-height:1.6"><b style="color:#c8972a;margin-right:10px">비고</b><span style="white-space:pre-wrap">${esc(r.note)}</span></div>` : ''}
+        <div style="margin-top:20px;border:1px solid #c8d7eb;background:#f8fcff;border-radius:8px;padding:16px 24px">
+          <div style="font-size:12px;font-weight:600;color:#0d1f3c">수수료 입금 계좌 안내</div>
+          <div style="font-size:18px;font-weight:700;color:#c8972a;margin-top:6px">하나은행 010-3489-4567</div>
+          <div style="font-size:12px;color:#646e82;margin-top:4px">(평생계좌) 예금주: 원제우</div>
+        </div>
+        <div style="margin-top:20px;background:#f0f2f5;border-radius:8px;padding:14px 20px;font-size:12px;line-height:1.8;color:#646e82">
+          <b style="color:#0d1f3c">유의사항</b><br>
+          · 위 금액은 부가가치세 포함 금액입니다.<br>
+          · 세무조사 수수료는 별도로 산정됩니다. 수수료는 매년 변동될 수 있습니다.
+        </div>
+      </div>
+      <div style="background:#0d1f3c;border-top:4px solid #c8972a;padding:14px 48px;text-align:center;font-size:11.5px;color:#c8ccd4">
+        원제우세무사사무소 · 부천시 소향로 135 3층 · 전화 032-321-4521 · taxmancall@gmail.com
+      </div>`;
+    document.body.appendChild(sheet);
 
-    y += 32;
-
-    // 거래금액 정보
-    doc.setFillColor(...navy);
-    doc.roundedRect(20, y, W - 40, 28, 3, 3, 'F');
-    doc.setFontSize(9);
-    doc.setTextColor(...gold);
-    doc.text(lastResult.consult ? 'CONSULTATION TIME' : 'TRANSACTION AMOUNT', 30, y + 9);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...white);
-    doc.text(lastResult.consult ? lastResult.timeLabel.replace('시간', ' H').replace(' 30분', ' 30 MIN') : lastResult.amount.toLocaleString('ko-KR') + ' KRW', 30, y + 22);
-
-    y += 40;
-
-    // 수수료 내역 테이블
-    const tableHeader = ['항목', '금액'];
-    const tableData = [
-      [lastResult.consult ? '기준 상담료' : '기준 수수료', lastResult.base.toLocaleString('ko-KR') + ' 원'],
-    ];
-    if (lastResult.joint) tableData.push([`공동명의 가산 (${lastResult.owners}명 · ${lastResult.jointRate}%)`, '+' + lastResult.jointAmt.toLocaleString('ko-KR') + ' 원']);
-    lastResult.extras.forEach(e => tableData.push([e[0], '+' + e[1].toLocaleString('ko-KR') + ' 원']));
-    if (lastResult.surcharge > 0) tableData.push([`가산 (${lastResult.surcharge}%)`, '+' + lastResult.surchargeAmt.toLocaleString('ko-KR') + ' 원']);
-    if (lastResult.book) tableData.push([lastResult.bookLabel, '-' + lastResult.bookAmt.toLocaleString('ko-KR') + ' 원']);
-    if (lastResult.discount > 0) tableData.push([`할인 (${lastResult.discount}%)`, '-' + lastResult.discountAmt.toLocaleString('ko-KR') + ' 원']);
-
-    // 테이블 헤더
-    doc.setFillColor(...navy);
-    doc.rect(20, y, W - 40, 10, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...white);
-    doc.text('항  목', 30, y + 7);
-    doc.text('금  액', W - 30, y + 7, { align: 'right' });
-    y += 10;
-
-    tableData.forEach((row, i) => {
-      doc.setFillColor(i % 2 === 0 ? 250 : 245, i % 2 === 0 ? 252 : 247, i % 2 === 0 ? 255 : 252);
-      doc.rect(20, y, W - 40, 10, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...gray);
-      doc.text(row[0], 30, y + 7);
-      const isDiscount = row[0].includes('할인');
-      doc.setTextColor(isDiscount ? 180 : 50, isDiscount ? 50 : 80, isDiscount ? 50 : 130);
-      doc.text(row[1], W - 30, y + 7, { align: 'right' });
-      y += 10;
-    });
-
-    // 합계
-    doc.setFillColor(...gold);
-    doc.rect(20, y, W - 40, 14, 'F');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...navy);
-    doc.text(lastResult.consult ? '최 종 상 담 료  (VAT 포함)' : '최 종 수 수 료  (VAT 포함)', 30, y + 10);
-    doc.text(lastResult.final.toLocaleString('ko-KR') + ' 원', W - 30, y + 10, { align: 'right' });
-    y += 24;
-
-    // 비고
-    if (lastResult.note) {
-      doc.setFillColor(255, 251, 235);
-      doc.roundedRect(20, y, W - 40, 16, 3, 3, 'F');
-      doc.setDrawColor(...gold);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(20, y, W - 40, 16, 3, 3, 'S');
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...gold);
-      doc.text('비고', 28, y + 7);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...gray);
-      doc.text(lastResult.note, 46, y + 7);
-      y += 26;
+    try {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      const canvas = await html2canvas(sheet, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+      doc.save(`원제우세무사사무소_${taxName}_${r.consult ? '상담료' : '수수료'}_${dateStr}.pdf`);
+    } catch (e) {
+      alert('PDF 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      console.error(e);
+    } finally {
+      sheet.remove();
     }
-
-    // 입금 계좌
-    y += 4;
-    doc.setFillColor(248, 252, 255);
-    doc.roundedRect(20, y, W - 40, 30, 3, 3, 'F');
-    doc.setDrawColor(200, 215, 235);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(20, y, W - 40, 30, 3, 3, 'S');
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...navy);
-    doc.text('수수료 입금 계좌 안내', 30, y + 10);
-
-    doc.setFontSize(12);
-    doc.setTextColor(...gold);
-    doc.text('HANAbank  010-3489-4567', 30, y + 21);
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...gray);
-    doc.text('(평생계좌)  예금주: 원제우', 30, y + 28);
-
-    y += 42;
-
-    // 유의사항
-    doc.setFillColor(...lightGray);
-    doc.roundedRect(20, y, W - 40, 26, 3, 3, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...navy);
-    doc.text('유의사항', 28, y + 8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...gray);
-    doc.text('· 위 수수료는 부가가치세(VAT) 포함 금액입니다.', 28, y + 15);
-    doc.text('· 세무조사 수수료는 별도로 산정됩니다. 수수료는 매년 변동될 수 있습니다.', 28, y + 21);
-
-    // 푸터
-    doc.setFillColor(...navy);
-    doc.rect(0, H - 24, W, 24, 'F');
-    doc.setFillColor(...gold);
-    doc.rect(0, H - 24, W, 2, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(180, 180, 180);
-    doc.text('원제우세무사사무소 · 부천시 소향로 135 3층 · Tel 032-321-4521 · taxmancall@gmail.com', W/2, H - 12, { align: 'center' });
-    doc.setTextColor(...gold);
-    doc.text('WON TAX', W/2, H - 6, { align: 'center' });
-
-    const typeMap = { '상속': 'inheritance', '증여': 'gift', '양도': 'transfer' };
-    doc.save(`원세무사_${typeMap[lastResult.type]}_${lastResult.consult ? 'consult_' : ''}fee_${dateStr}.pdf`);
   }
 
   // 초기화
