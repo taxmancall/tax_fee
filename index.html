@@ -450,7 +450,7 @@
       <div class="office-name">원제우세무사사무소</div>
       <div class="office-sub">재산분야 수수료 계산기 · 상속 · 증여 · 양도</div>
     </div>
-    <div class="year-badge">2024년 기준</div>
+    <div class="year-badge" id="year-badge">2026.9. 기준</div>
   </div>
 </header>
 
@@ -578,6 +578,7 @@
   function updateAmountLabel() {
     const labels = { '상속': '상속재산 가액', '증여': '증여재산 가액', '양도': '양도 거래금액' };
     document.getElementById('amount-label').innerHTML = `${labels[selectedType]} <span>원 단위 입력</span>`;
+    document.getElementById('year-badge').textContent = selectedType === '상속' ? '2026.9. 기준' : '2024년 기준';
   }
 
   function formatAmount(el) {
@@ -617,13 +618,18 @@
   // ── 수수료 테이블 ──
   function calcBase(type, amount) {
     if (type === '상속') {
-      if (amount < 200000000) return 550000;
-      if (amount < 500000000) return 550000 + (amount - 200000000) * 3.3 / 1000;
-      if (amount < 1000000000) return 1650000 + (amount - 500000000) * 2.75 / 1000;
-      if (amount < 3000000000) return 3300000 + (amount - 1000000000) * 2.2 / 1000;
-      if (amount < 5000000000) return 9020000 + (amount - 3000000000) * 1.65 / 1000;
-      if (amount < 10000000000) return 12760000 + (amount - 5000000000) * 0.55 / 1000;
-      return 19360000 + (amount - 10000000000) * 0.275 / 1000;
+      // 2026.9. 채택 기준표 (부가세 별도 설계) → 이 페이지는 부가세 포함 표시이므로 ×1.1
+      const EOK = 100000000;
+      let supply;
+      if (amount <= 3 * EOK) supply = 1500000;
+      else if (amount <= 5 * EOK) supply = 2000000;
+      else if (amount <= 10 * EOK) supply = 2500000;
+      else if (amount < 20 * EOK) supply = 2500000 + (amount - 10 * EOK) * 0.003;
+      else if (amount < 30 * EOK) supply = 5500000 + (amount - 20 * EOK) * 0.002;
+      else if (amount < 50 * EOK) supply = 7500000 + (amount - 30 * EOK) * 0.0015;
+      else if (amount < 100 * EOK) supply = 10500000 + (amount - 50 * EOK) * 0.001;
+      else supply = 15500000; // 100억원 이상: 기준선, 초과분 별도 협의
+      return supply * 1.1;
     }
     if (type === '증여') {
       if (amount < 200000000) return 550000;
@@ -670,6 +676,7 @@
     if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
     rows.push(['최종 수수료 (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
+    if (selectedType === '상속' && amount >= 10000000000) rows.push(['100억원 초과분', '별도 협의 (위 금액은 기준선)']);
     if (note) rows.push(['비고', note]);
 
     const table = document.getElementById('breakdown-table');
@@ -717,7 +724,7 @@
 
     doc.setFontSize(10);
     doc.setTextColor(200, 200, 200);
-    doc.text('2024 ESTATE TAX FEE STATEMENT', 20, 38);
+    doc.text((lastResult.type === '상속' ? '2026' : '2024') + ' ESTATE TAX FEE STATEMENT', 20, 38);
 
     // 날짜
     const today = new Date();
