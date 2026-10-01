@@ -546,6 +546,11 @@
       <div class="amount-preview" id="amount-preview"></div>
     </div>
 
+    <!-- 기장 고객 할인 -->
+    <div class="input-group">
+      <label class="joint-check"><input type="checkbox" id="bookkeeping"><span><b>기장 고객</b> · <span id="book-desc"></span></span></label>
+    </div>
+
     <!-- 할인 / 가산 -->
     <div class="two-col">
       <div class="input-group">
@@ -647,6 +652,10 @@
     '양도': { base: 110000, extra: 55000 }
   };
 
+  // 기장 고객 할인: 기준 수수료에만 적용 (공동명의 가산·추가 검토 항목 제외)
+  const BOOK_RATE = { '상속': 30, '증여': 30, '양도': 50 };
+  const BOOK_CAP = { '상속': 2200000, '증여': 2200000 }; // 할인 상한 (부가세 포함), 양도는 상한 없음
+
   function selectMode(btn) {
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -673,6 +682,10 @@
     document.getElementById('amount-group').style.display = consult ? 'none' : '';
     document.getElementById('joint-group').style.display = showOpts ? '' : 'none';
     if (!showOpts) resetOptions();
+    const cap = BOOK_CAP[selectedType];
+    document.getElementById('book-desc').textContent = consult
+      ? '기본 1시간 상담료 면제'
+      : `기준 수수료 ${BOOK_RATE[selectedType]}% 할인` + (cap ? ` (상한 ${(cap / 10000).toLocaleString('ko-KR')}만원)` : '');
     const c = CONSULT[selectedType];
     document.getElementById('consult-info').innerHTML =
       `${selectedType}${selectedType === '양도' ? '소득' : ''}세 상담료: 기본 1시간 ${c.base.toLocaleString('ko-KR')}원 · 추가 30분당 ${c.extra.toLocaleString('ko-KR')}원 (부가세 포함)<br>상담 후 신고를 위임하시면 상담료 전액을 신고 수수료에서 차감합니다.`;
@@ -789,10 +802,24 @@
     const extras = isYangdo ? Array.from(document.querySelectorAll('#joint-group .opt:checked')).map(c => [c.dataset.label, Number(c.dataset.fee)]) : [];
     const extrasAmt = extras.reduce((t, e) => t + e[1], 0);
     const afterSurcharge = base + jointAmt + extrasAmt + surchargeAmt;
-    const discountAmt = Math.round(afterSurcharge * discount / 100);
-    const final = afterSurcharge - discountAmt;
+    // 기장 고객 할인
+    const book = document.getElementById('bookkeeping').checked;
+    let bookAmt = 0, bookLabel = '';
+    if (book && consult) {
+      bookAmt = CONSULT[selectedType].base;
+      bookLabel = '기장 고객 할인 (기본 1시간 면제)';
+    } else if (book) {
+      const rate = BOOK_RATE[selectedType], cap = BOOK_CAP[selectedType];
+      bookAmt = Math.round(base * rate / 100);
+      const capped = cap && bookAmt > cap;
+      if (capped) bookAmt = cap;
+      bookLabel = `기장 고객 할인 (${rate}%${capped ? ' · 상한 적용' : ''})`;
+    }
+    const afterBook = afterSurcharge - bookAmt;
+    const discountAmt = Math.round(afterBook * discount / 100);
+    const final = afterBook - discountAmt;
 
-    lastResult = { type: selectedType, consult, timeLabel, amount, base, joint, owners, jointAmt, jointRate, extras, surcharge, surchargeAmt, discount, discountAmt, final, note };
+    lastResult = { type: selectedType, consult, timeLabel, amount, base, joint, owners, jointAmt, jointRate, extras, book, bookAmt, bookLabel, surcharge, surchargeAmt, discount, discountAmt, final, note };
 
     // 화면 출력
     const feeWord = consult ? '상담료' : '수수료';
@@ -805,6 +832,7 @@
     if (joint) rows.push(['공동명의 가산 (' + owners + '명 · ' + jointRate + '%)', '+' + jointAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     extras.forEach(e => rows.push([e[0], '+' + e[1].toLocaleString('ko-KR') + ' 원', 'surcharge']));
     if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
+    if (book) rows.push([bookLabel, '-' + bookAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
     if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
     rows.push(['최종 ' + feeWord + ' (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
     if (consult) rows.push(['신고 위임 시', '상담료 전액을 신고 수수료에서 차감']);
@@ -904,6 +932,7 @@
     if (lastResult.joint) tableData.push([`공동명의 가산 (${lastResult.owners}명 · ${lastResult.jointRate}%)`, '+' + lastResult.jointAmt.toLocaleString('ko-KR') + ' 원']);
     lastResult.extras.forEach(e => tableData.push([e[0], '+' + e[1].toLocaleString('ko-KR') + ' 원']));
     if (lastResult.surcharge > 0) tableData.push([`가산 (${lastResult.surcharge}%)`, '+' + lastResult.surchargeAmt.toLocaleString('ko-KR') + ' 원']);
+    if (lastResult.book) tableData.push([lastResult.bookLabel, '-' + lastResult.bookAmt.toLocaleString('ko-KR') + ' 원']);
     if (lastResult.discount > 0) tableData.push([`할인 (${lastResult.discount}%)`, '-' + lastResult.discountAmt.toLocaleString('ko-KR') + ' 원']);
 
     // 테이블 헤더
