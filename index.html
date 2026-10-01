@@ -459,7 +459,7 @@
       <div class="office-name">원제우세무사사무소</div>
       <div class="office-sub">재산분야 수수료 계산기 · 상속 · 증여 · 양도</div>
     </div>
-    <div class="year-badge" id="year-badge">2026.9. 기준</div>
+    <div class="year-badge" id="year-badge">2026년 기준</div>
   </div>
 </header>
 
@@ -597,7 +597,6 @@
     document.getElementById('amount-label').innerHTML = `${labels[selectedType]} <span>원 단위 입력</span>`;
     document.getElementById('joint-group').style.display = selectedType === '양도' ? '' : 'none';
     if (selectedType !== '양도') document.getElementById('joint').checked = false;
-    document.getElementById('year-badge').textContent = selectedType === '상속' ? '2026.9. 기준' : '2024년 기준';
   }
 
   function formatAmount(el) {
@@ -748,7 +747,7 @@
 
     doc.setFontSize(10);
     doc.setTextColor(200, 200, 200);
-    doc.text((lastResult.type === '상속' ? '2026' : '2024') + ' ESTATE TAX FEE STATEMENT', 20, 38);
+    doc.text('2026 ESTATE TAX FEE STATEMENT', 20, 38);
 
     // 날짜
     const today = new Date();
