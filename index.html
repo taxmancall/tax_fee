@@ -241,6 +241,15 @@
   .adj-row select:focus { border-color: var(--gold); }
   .adj-row .input-row { flex: 1; }
 
+  /* JOINT */
+  .joint-check {
+    display: flex; align-items: center; gap: 10px;
+    border: 1.5px solid var(--gray-200); border-radius: 8px;
+    padding: 12px 16px; font-size: 13px; color: var(--gray-700); cursor: pointer;
+  }
+  .joint-check input { width: 18px; height: 18px; accent-color: var(--gold); flex-shrink: 0; }
+  .joint-check b { color: var(--navy); }
+
   /* NOTE */
   .note-area textarea {
     width: 100%;
@@ -512,6 +521,14 @@
       </div>
     </div>
 
+    <!-- 공동명의 (양도 전용) -->
+    <div class="input-group" id="joint-group" style="display:none">
+      <label class="joint-check">
+        <input type="checkbox" id="joint">
+        <span><b>부부 공동명의</b> · 전체 양도가액 기준 수수료에 +30% 가산 (신고서 2건)</span>
+      </label>
+    </div>
+
     <!-- 비고 -->
     <div class="input-group note-area">
       <label class="input-label">비고 <span>메모 (PDF에 포함됩니다)</span></label>
@@ -578,13 +595,16 @@
   function updateAmountLabel() {
     const labels = { '상속': '상속재산 가액', '증여': '증여재산 가액', '양도': '양도 거래금액' };
     document.getElementById('amount-label').innerHTML = `${labels[selectedType]} <span>원 단위 입력</span>`;
+    document.getElementById('joint-group').style.display = selectedType === '양도' ? '' : 'none';
+    if (selectedType !== '양도') document.getElementById('joint').checked = false;
     document.getElementById('year-badge').textContent = selectedType === '상속' ? '2026.9. 기준' : '2024년 기준';
   }
 
   function formatAmount(el) {
     let raw = el.value.replace(/[^0-9]/g, '');
-    if (raw === '') { el.value = ''; return; }
+    if (raw === '') { el.value = ''; updatePreview(); return; }
     el.value = Number(raw).toLocaleString('ko-KR');
+    updatePreview();
   }
 
   function getRawAmount() {
@@ -659,12 +679,15 @@
     const note = document.getElementById('note').value.trim();
 
     const base = Math.round(calcBase(selectedType, amount));
+    const JOINT_RATE = 30; // 부부 공동명의 가산율(%)
+    const joint = selectedType === '양도' && document.getElementById('joint').checked;
+    const jointAmt = joint ? Math.round(base * JOINT_RATE / 100) : 0;
     const surchargeAmt = Math.round(base * surcharge / 100);
-    const afterSurcharge = base + surchargeAmt;
+    const afterSurcharge = base + jointAmt + surchargeAmt;
     const discountAmt = Math.round(afterSurcharge * discount / 100);
     const final = afterSurcharge - discountAmt;
 
-    lastResult = { type: selectedType, amount, base, surcharge, surchargeAmt, discount, discountAmt, final, note };
+    lastResult = { type: selectedType, amount, base, joint, jointAmt, jointRate: JOINT_RATE, surcharge, surchargeAmt, discount, discountAmt, final, note };
 
     // 화면 출력
     document.getElementById('res-type-label').textContent = `${selectedType}세 신고대리 수수료 (VAT 포함)`;
@@ -673,6 +696,7 @@
     const rows = [];
     rows.push(['거래금액', formatKorean(amount)]);
     rows.push(['기준 수수료', base.toLocaleString('ko-KR') + ' 원']);
+    if (joint) rows.push(['부부 공동명의 가산 (' + JOINT_RATE + '%)', '+' + jointAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
     rows.push(['최종 수수료 (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
@@ -769,6 +793,7 @@
     const tableData = [
       ['기준 수수료', lastResult.base.toLocaleString('ko-KR') + ' 원'],
     ];
+    if (lastResult.joint) tableData.push([`부부 공동명의 가산 (${lastResult.jointRate}%)`, '+' + lastResult.jointAmt.toLocaleString('ko-KR') + ' 원']);
     if (lastResult.surcharge > 0) tableData.push([`가산 (${lastResult.surcharge}%)`, '+' + lastResult.surchargeAmt.toLocaleString('ko-KR') + ' 원']);
     if (lastResult.discount > 0) tableData.push([`할인 (${lastResult.discount}%)`, '-' + lastResult.discountAmt.toLocaleString('ko-KR') + ' 원']);
 
