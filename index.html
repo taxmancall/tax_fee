@@ -523,10 +523,11 @@
 
     <!-- 공동명의 (양도 전용) -->
     <div class="input-group" id="joint-group" style="display:none">
-      <label class="joint-check">
-        <input type="checkbox" id="joint">
-        <span><b>부부 공동명의</b> · 전체 양도가액 기준 수수료에 +30% 가산 (신고서 2건)</span>
-      </label>
+      <label class="input-label">공동명의 <span>명의자 수 · 전체 양도가액 기준 수수료에 추가 1인당 +30% 가산</span></label>
+      <div class="input-row">
+        <input type="number" id="owners" value="1" min="1" max="20" step="1" oninput="clampOwners(this)">
+        <span class="input-unit">명</span>
+      </div>
     </div>
 
     <!-- 비고 -->
@@ -596,7 +597,7 @@
     const labels = { '상속': '상속재산 가액', '증여': '증여재산 가액', '양도': '양도 거래금액' };
     document.getElementById('amount-label').innerHTML = `${labels[selectedType]} <span>원 단위 입력</span>`;
     document.getElementById('joint-group').style.display = selectedType === '양도' ? '' : 'none';
-    if (selectedType !== '양도') document.getElementById('joint').checked = false;
+    if (selectedType !== '양도') document.getElementById('owners').value = 1;
   }
 
   function formatAmount(el) {
@@ -628,6 +629,14 @@
       tmp = tmp % div[i];
     }
     return parts.join(' ') + '원';
+  }
+
+  function clampOwners(el) {
+    if (el.value === '') return;
+    let n = Math.floor(Number(el.value));
+    if (!(n >= 1)) n = 1;
+    if (n > 20) n = 20;
+    el.value = n;
   }
 
   function clampAdj(el) {
@@ -678,15 +687,17 @@
     const note = document.getElementById('note').value.trim();
 
     const base = Math.round(calcBase(selectedType, amount));
-    const JOINT_RATE = 30; // 부부 공동명의 가산율(%)
-    const joint = selectedType === '양도' && document.getElementById('joint').checked;
-    const jointAmt = joint ? Math.round(base * JOINT_RATE / 100) : 0;
+    const JOINT_RATE = 30; // 공동명의 가산율(%): 명의자 추가 1인당
+    const owners = selectedType === '양도' ? Math.max(1, Math.floor(Number(document.getElementById('owners').value) || 1)) : 1;
+    const joint = owners > 1;
+    const jointRate = JOINT_RATE * (owners - 1);
+    const jointAmt = joint ? Math.round(base * jointRate / 100) : 0;
     const surchargeAmt = Math.round(base * surcharge / 100);
     const afterSurcharge = base + jointAmt + surchargeAmt;
     const discountAmt = Math.round(afterSurcharge * discount / 100);
     const final = afterSurcharge - discountAmt;
 
-    lastResult = { type: selectedType, amount, base, joint, jointAmt, jointRate: JOINT_RATE, surcharge, surchargeAmt, discount, discountAmt, final, note };
+    lastResult = { type: selectedType, amount, base, joint, owners, jointAmt, jointRate, surcharge, surchargeAmt, discount, discountAmt, final, note };
 
     // 화면 출력
     document.getElementById('res-type-label').textContent = `${selectedType}세 신고대리 수수료 (VAT 포함)`;
@@ -695,7 +706,7 @@
     const rows = [];
     rows.push(['거래금액', formatKorean(amount)]);
     rows.push(['기준 수수료', base.toLocaleString('ko-KR') + ' 원']);
-    if (joint) rows.push(['부부 공동명의 가산 (' + JOINT_RATE + '%)', '+' + jointAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
+    if (joint) rows.push(['공동명의 가산 (' + owners + '명 · ' + jointRate + '%)', '+' + jointAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
     rows.push(['최종 수수료 (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
@@ -792,7 +803,7 @@
     const tableData = [
       ['기준 수수료', lastResult.base.toLocaleString('ko-KR') + ' 원'],
     ];
-    if (lastResult.joint) tableData.push([`부부 공동명의 가산 (${lastResult.jointRate}%)`, '+' + lastResult.jointAmt.toLocaleString('ko-KR') + ' 원']);
+    if (lastResult.joint) tableData.push([`공동명의 가산 (${lastResult.owners}명 · ${lastResult.jointRate}%)`, '+' + lastResult.jointAmt.toLocaleString('ko-KR') + ' 원']);
     if (lastResult.surcharge > 0) tableData.push([`가산 (${lastResult.surcharge}%)`, '+' + lastResult.surchargeAmt.toLocaleString('ko-KR') + ' 원']);
     if (lastResult.discount > 0) tableData.push([`할인 (${lastResult.discount}%)`, '-' + lastResult.discountAmt.toLocaleString('ko-KR') + ' 원']);
 
