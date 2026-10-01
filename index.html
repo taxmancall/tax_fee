@@ -172,6 +172,23 @@
   }
   .type-btn.active .type-label { color: var(--gold); }
 
+  /* MODE */
+  .mode-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .mode-btn {
+    border: 2px solid var(--gray-200); background: var(--white); border-radius: 10px;
+    padding: 12px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px; font-weight: 600; color: var(--gray-700); transition: all 0.18s;
+  }
+  .mode-btn small { display: block; font-size: 11px; font-weight: 300; color: var(--gray-400); margin-top: 2px; }
+  .mode-btn.active { border-color: var(--navy); background: var(--navy); color: var(--white); }
+  .mode-btn.active small { color: var(--gold-light); }
+  .consult-select {
+    width: 100%; border: 1.5px solid var(--gray-200); border-radius: 8px; padding: 13px 16px;
+    font-family: 'Noto Sans KR', sans-serif; font-size: 15px; font-weight: 500; color: var(--navy);
+    background: var(--white); outline: none;
+  }
+  .consult-info { font-size: 12px; color: var(--gray-400); margin-top: 8px; line-height: 1.6; }
+
   /* INPUTS */
   .input-group { margin-bottom: 18px; }
   .input-label {
@@ -497,12 +514,30 @@
         <span class="type-desc">부동산 양도 신고대리</span>
       </button>
     </div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="신고" onclick="selectMode(this)">신고대리<small>재산·거래금액 기준</small></button>
+      <button class="mode-btn" data-mode="상담" onclick="selectMode(this)">상담<small>시간 기준</small></button>
+    </div>
   </div>
 
   <!-- 금액 입력 -->
   <div class="card">
-    <div class="card-title">거래금액 입력</div>
-    <div class="input-group">
+    <div class="card-title" id="input-title">거래금액 입력</div>
+
+    <!-- 상담 (시간 기준) -->
+    <div class="input-group" id="consult-group" style="display:none">
+      <label class="input-label">상담 시간 <span>방문·화상 상담 기준</span></label>
+      <select class="consult-select" id="consult-time">
+        <option value="0">1시간 (기본)</option>
+        <option value="1">1시간 30분</option>
+        <option value="2">2시간</option>
+        <option value="3">2시간 30분</option>
+        <option value="4">3시간</option>
+      </select>
+      <div class="consult-info" id="consult-info"></div>
+    </div>
+
+    <div class="input-group" id="amount-group">
       <label class="input-label" id="amount-label">수입(자산)금액 <span>원 단위 입력</span></label>
       <div class="input-row">
         <input type="text" id="amount" placeholder="0" oninput="formatAmount(this)" onkeyup="updatePreview()">
@@ -603,6 +638,21 @@
 
 <script>
   let selectedType = '상속';
+  let selectedMode = '신고';
+
+  // 상담료 (부가세 포함): 기본 1시간 + 추가 30분당
+  const CONSULT = {
+    '상속': { base: 220000, extra: 55000 },
+    '증여': { base: 110000, extra: 55000 },
+    '양도': { base: 110000, extra: 55000 }
+  };
+
+  function selectMode(btn) {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedMode = btn.dataset.mode;
+    updateAmountLabel();
+  }
   let lastResult = null;
 
   function selectType(btn) {
@@ -616,8 +666,16 @@
   function updateAmountLabel() {
     const labels = { '상속': '상속재산 가액', '증여': '증여재산 가액', '양도': '양도 거래금액' };
     document.getElementById('amount-label').innerHTML = `${labels[selectedType]} <span>원 단위 입력</span>`;
-    document.getElementById('joint-group').style.display = selectedType === '양도' ? '' : 'none';
-    if (selectedType !== '양도') resetOptions();
+    const consult = selectedMode === '상담';
+    const showOpts = selectedType === '양도' && !consult;
+    document.getElementById('input-title').textContent = consult ? '상담 시간 입력' : '거래금액 입력';
+    document.getElementById('consult-group').style.display = consult ? '' : 'none';
+    document.getElementById('amount-group').style.display = consult ? 'none' : '';
+    document.getElementById('joint-group').style.display = showOpts ? '' : 'none';
+    if (!showOpts) resetOptions();
+    const c = CONSULT[selectedType];
+    document.getElementById('consult-info').innerHTML =
+      `${selectedType}${selectedType === '양도' ? '소득' : ''}세 상담료: 기본 1시간 ${c.base.toLocaleString('ko-KR')}원 · 추가 30분당 ${c.extra.toLocaleString('ko-KR')}원 (부가세 포함)<br>상담 후 신고를 위임하시면 상담료 전액을 신고 수수료에서 차감합니다.`;
   }
 
   function formatAmount(el) {
@@ -706,18 +764,22 @@
   }
 
   function calculate() {
-    const amount = getRawAmount();
-    if (!amount || amount <= 0) {
+    const consult = selectedMode === '상담';
+    const amount = consult ? 0 : getRawAmount();
+    if (!consult && (!amount || amount <= 0)) {
       alert('금액을 입력해 주세요.');
       return;
     }
+    const steps = consult ? Number(document.getElementById('consult-time').value) : 0;
+    const minutes = 60 + steps * 30;
+    const timeLabel = Math.floor(minutes / 60) + '시간' + (minutes % 60 ? ' 30분' : '');
     const discount = parseFloat(document.getElementById('discount').value || 0);
     const surcharge = parseFloat(document.getElementById('surcharge').value || 0);
     const note = document.getElementById('note').value.trim();
 
-    const base = Math.round(calcBase(selectedType, amount));
+    const base = consult ? CONSULT[selectedType].base + steps * CONSULT[selectedType].extra : Math.round(calcBase(selectedType, amount));
     const JOINT_RATE = 30; // 공동명의 가산율(%): 명의자 추가 1인당
-    const isYangdo = selectedType === '양도';
+    const isYangdo = selectedType === '양도' && !consult;
     const joint = isYangdo && document.getElementById('opt-joint').checked;
     const owners = joint ? Math.min(20, Math.max(2, Math.floor(Number(document.getElementById('owners').value) || 2))) : 1;
     const jointRate = JOINT_RATE * (owners - 1);
@@ -730,21 +792,23 @@
     const discountAmt = Math.round(afterSurcharge * discount / 100);
     const final = afterSurcharge - discountAmt;
 
-    lastResult = { type: selectedType, amount, base, joint, owners, jointAmt, jointRate, extras, surcharge, surchargeAmt, discount, discountAmt, final, note };
+    lastResult = { type: selectedType, consult, timeLabel, amount, base, joint, owners, jointAmt, jointRate, extras, surcharge, surchargeAmt, discount, discountAmt, final, note };
 
     // 화면 출력
-    document.getElementById('res-type-label').textContent = `${selectedType}세 신고대리 수수료 (VAT 포함)`;
+    const feeWord = consult ? '상담료' : '수수료';
+    document.getElementById('res-type-label').textContent = `${selectedType}세 ${consult ? '상담료' : '신고대리 수수료'} (VAT 포함)`;
     document.getElementById('res-final-amount').innerHTML = `${final.toLocaleString('ko-KR')}<span>원</span>`;
 
     const rows = [];
-    rows.push(['거래금액', formatKorean(amount)]);
-    rows.push(['기준 수수료', base.toLocaleString('ko-KR') + ' 원']);
+    rows.push(consult ? ['상담 시간', timeLabel] : ['거래금액', formatKorean(amount)]);
+    rows.push(['기준 ' + feeWord, base.toLocaleString('ko-KR') + ' 원']);
     if (joint) rows.push(['공동명의 가산 (' + owners + '명 · ' + jointRate + '%)', '+' + jointAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     extras.forEach(e => rows.push([e[0], '+' + e[1].toLocaleString('ko-KR') + ' 원', 'surcharge']));
     if (surcharge > 0) rows.push(['가산 (' + surcharge + '%)', '+' + surchargeAmt.toLocaleString('ko-KR') + ' 원', 'surcharge']);
     if (discount > 0) rows.push(['할인 (' + discount + '%)', '-' + discountAmt.toLocaleString('ko-KR') + ' 원', 'discount']);
-    rows.push(['최종 수수료 (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
-    if (selectedType === '상속' && amount >= 10000000000) rows.push(['100억원 초과분', '별도 협의 (위 금액은 기준선)']);
+    rows.push(['최종 ' + feeWord + ' (VAT포함)', final.toLocaleString('ko-KR') + ' 원', 'total']);
+    if (consult) rows.push(['신고 위임 시', '상담료 전액을 신고 수수료에서 차감']);
+    if (!consult && selectedType === '상속' && amount >= 10000000000) rows.push(['100억원 초과분', '별도 협의 (위 금액은 기준선)']);
     if (note) rows.push(['비고', note]);
 
     const table = document.getElementById('breakdown-table');
@@ -811,7 +875,7 @@
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...navy);
-    doc.text(`${lastResult.type}  TAX SERVICE FEE STATEMENT`, W/2, y + 9, { align: 'center' });
+    doc.text(`${lastResult.type}  TAX ${lastResult.consult ? 'CONSULTATION' : 'SERVICE'} FEE STATEMENT`, W/2, y + 9, { align: 'center' });
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...gray);
@@ -824,18 +888,18 @@
     doc.roundedRect(20, y, W - 40, 28, 3, 3, 'F');
     doc.setFontSize(9);
     doc.setTextColor(...gold);
-    doc.text('TRANSACTION AMOUNT', 30, y + 9);
+    doc.text(lastResult.consult ? 'CONSULTATION TIME' : 'TRANSACTION AMOUNT', 30, y + 9);
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...white);
-    doc.text(lastResult.amount.toLocaleString('ko-KR') + ' KRW', 30, y + 22);
+    doc.text(lastResult.consult ? lastResult.timeLabel.replace('시간', ' H').replace(' 30분', ' 30 MIN') : lastResult.amount.toLocaleString('ko-KR') + ' KRW', 30, y + 22);
 
     y += 40;
 
     // 수수료 내역 테이블
     const tableHeader = ['항목', '금액'];
     const tableData = [
-      ['기준 수수료', lastResult.base.toLocaleString('ko-KR') + ' 원'],
+      [lastResult.consult ? '기준 상담료' : '기준 수수료', lastResult.base.toLocaleString('ko-KR') + ' 원'],
     ];
     if (lastResult.joint) tableData.push([`공동명의 가산 (${lastResult.owners}명 · ${lastResult.jointRate}%)`, '+' + lastResult.jointAmt.toLocaleString('ko-KR') + ' 원']);
     lastResult.extras.forEach(e => tableData.push([e[0], '+' + e[1].toLocaleString('ko-KR') + ' 원']));
@@ -871,7 +935,7 @@
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...navy);
-    doc.text('최 종 수 수 료  (VAT 포함)', 30, y + 10);
+    doc.text(lastResult.consult ? '최 종 상 담 료  (VAT 포함)' : '최 종 수 수 료  (VAT 포함)', 30, y + 10);
     doc.text(lastResult.final.toLocaleString('ko-KR') + ' 원', W - 30, y + 10, { align: 'right' });
     y += 24;
 
@@ -940,7 +1004,7 @@
     doc.text('WON TAX', W/2, H - 6, { align: 'center' });
 
     const typeMap = { '상속': 'inheritance', '증여': 'gift', '양도': 'transfer' };
-    doc.save(`원세무사_${typeMap[lastResult.type]}_fee_${dateStr}.pdf`);
+    doc.save(`원세무사_${typeMap[lastResult.type]}_${lastResult.consult ? 'consult_' : ''}fee_${dateStr}.pdf`);
   }
 
   // 초기화
